@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js'
 import type { Audio } from '../engine/audio'
 import type { Input } from '../engine/input'
 import type { Renderer } from '../engine/renderer'
@@ -36,6 +37,9 @@ export type GameHooks = {
 type Enemy = { mesh: THREE.Group; hp: number; alive: boolean; cooldown: number; patrol: THREE.Vector3[]; waypoint: number }
 type Block = { minX: number; maxX: number; minZ: number; maxZ: number }
 const UP = new THREE.Vector3(0, 1, 0)
+const EYE_HEIGHT = 1.65
+const JUMP_SPEED = 6.8
+const GRAVITY = 19
 
 export class Game {
   mode: Mode = 'attract'
@@ -51,11 +55,15 @@ export class Game {
   private readonly playerVelocity = new THREE.Vector3()
   private readonly bombGroup = new THREE.Group()
   private readonly bombGlow = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 8), new THREE.MeshBasicMaterial({ color: '#59f3d4' }))
+  private defenderTemplate: THREE.Group | null = null
+  private defenderAnimations: THREE.AnimationClip[] = []
   private yaw = Math.PI
   private pitch = -0.04
   private clock = 0
   private fireCooldown = 0
   private interaction = 0
+  private verticalVelocity = 0
+  private grounded = true
 
   constructor(private readonly renderer: Renderer, private readonly input: Input, private readonly audio: Audio, private readonly hooks: GameHooks) {
     this.scene.background = new THREE.Color('#07111e')
@@ -73,6 +81,7 @@ export class Game {
     this.bombGroup.add(this.bombGlow)
     this.bombGroup.visible = false
     this.loadBombModel()
+    this.loadDefenderModel()
     this.camera.rotation.order = 'YXZ'
   }
 
@@ -80,7 +89,7 @@ export class Game {
 
   start(): void {
     this.clock = 0; this.yaw = Math.PI; this.pitch = -0.04
-    this.player.set(0, 1.65, 18); this.playerVelocity.set(0, 0, 0)
+    this.player.set(0, EYE_HEIGHT, 18); this.playerVelocity.set(0, 0, 0); this.verticalVelocity = 0; this.grounded = true
     this.round = { ...initialRound(), phase: 'playing', round: 1, objective: 'Move to Site A or B and plant the bomb', enemies: 5 }
     this.interaction = 0; this.fireCooldown = 0
     this.bombGroup.visible = false
@@ -125,7 +134,10 @@ export class Game {
       this.bombGroup.rotation.y += frameSeconds * 0.75
       this.bombGlow.position.y = 0.72 + Math.sin(this.clock * 5) * 0.08
     }
-    for (const enemy of this.enemies) if (enemy.alive) enemy.mesh.position.y = 0.15 + Math.sin(this.clock * 4 + enemy.mesh.position.x) * 0.025
+    for (const enemy of this.enemies) if (enemy.alive) {
+      enemy.mesh.position.y = 0.15 + Math.sin(this.clock * 4 + enemy.mesh.position.x) * 0.025
+      ;(enemy.mesh.userData.mixer as THREE.AnimationMixer | undefined)?.update(frameSeconds)
+    }
     this.renderer.render(this.scene, this.camera)
   }
 
@@ -137,12 +149,27 @@ export class Game {
     const speed = this.input.held('sprint') ? 7.2 : 5.3
     desired.multiplyScalar(speed)
     this.playerVelocity.lerp(desired, 1 - Math.exp(-13 * dt))
-    const next = this.player.clone().addScaledVector(this.playerVelocity, dt)
-    next.y = 1.65
-    next.x = THREE.MathUtils.clamp(next.x, -24, 24)
-    next.z = THREE.MathUtils.clamp(next.z, -23, 22)
-    if (!this.collides(next.x, next.z)) this.player.copy(next)
-    else this.playerVelocity.multiplyScalar(0.18)
+    const nextX = THREE.MathUtils.clamp(this.player.x + this.playerVelocity.x * dt, -24, 24)
+    const nextZ = THREE.MathUtils.clamp(this.player.z + this.playerVelocity.z * dt, -23, 22)
+    // Resolve each axis independently so a wall causes a smooth slide instead of a full stop.
+    if (!this.collides(nextX, this.player.z)) this.player.x = nextX
+    else this.playerVelocity.x = 0
+    if (!this.collides(this.player.x, nextZ)) this.player.z = nextZ
+    else this.playerVelocity.z = 0
+
+    if (this.input.consume('jump') && this.grounded) {
+      this.verticalVelocity = JUMP_SPEED
+      this.grounded = false
+      this.audio.play('ui')
+    }
+    if (!this.input.held('jump') && this.verticalVelocity > 0) this.verticalVelocity -= 7 * dt
+    this.verticalVelocity -= GRAVITY * dt
+    this.player.y += this.verticalVelocity * dt
+    if (this.player.y <= EYE_HEIGHT) {
+      this.player.y = EYE_HEIGHT
+      this.verticalVelocity = 0
+      this.grounded = true
+    }
   }
 
   private handleCombat(): void {
@@ -158,7 +185,7 @@ export class Game {
       if (this.round.ammo <= 0) { this.hooks.banner('Out of ammo — press R to reload', 'warning'); this.audio.play('hurt'); return }
       this.fireCooldown = 0.13; this.round.ammo -= 1; this.audio.play('dash')
       this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera)
-      const targets = this.enemies.filter(e => e.alive).flatMap(e => [e.mesh])
+      const targets = this.enemies.filter(e => e.alive && this.hasLineOfSight(this.camera.position, new THREE.Vector3(e.mesh.position.x, e.mesh.position.y + 1.1, e.mesh.position.z))).flatMap(e => [e.mesh])
       const hit = this.raycaster.intersectObjects(targets, true)[0]
       if (hit) {
         let node: THREE.Object3D | null = hit.object
@@ -187,11 +214,13 @@ export class Game {
       if (distance < 21) {
         if (distance > 7) {
           toPlayer.normalize(); const next = pos.clone().addScaledVector(toPlayer, dt * 1.35)
-          if (!this.collides(next.x, next.z)) pos.copy(next)
+          if (!this.collides(next.x, pos.z)) pos.x = next.x
+          if (!this.collides(pos.x, next.z)) pos.z = next.z
         }
         enemy.mesh.lookAt(this.player.x, pos.y, this.player.z)
         enemy.cooldown -= dt
-        if (distance < 18 && enemy.cooldown <= 0) {
+        const enemyEye = new THREE.Vector3(pos.x, pos.y + 1.35, pos.z)
+        if (distance < 18 && enemy.cooldown <= 0 && this.hasLineOfSight(enemyEye, this.player)) {
           enemy.cooldown = 1.2 + Math.random() * 1.1
           if (Math.random() < 0.58) {
             this.round.hp = Math.max(0, this.round.hp - 7)
@@ -316,6 +345,18 @@ export class Game {
   }
 
   private makeBot(index: number): THREE.Group {
+    if (this.defenderTemplate) {
+      const realistic = SkeletonUtils.clone(this.defenderTemplate) as THREE.Group
+      realistic.scale.setScalar(1.05)
+      realistic.traverse(o => { const m = o as THREE.Mesh; m.castShadow = true; m.userData.enemy = undefined })
+      if (this.defenderAnimations.length > 0) {
+        const mixer = new THREE.AnimationMixer(realistic)
+        const walk = this.defenderAnimations.find(clip => /walk/i.test(clip.name)) ?? this.defenderAnimations[0]
+        mixer.clipAction(walk).play()
+        realistic.userData.mixer = mixer
+      }
+      return realistic
+    }
     const g = new THREE.Group(); const bodyMat = new THREE.MeshStandardMaterial({ color: index % 2 ? '#b14652' : '#c26b42', roughness: 0.55 }); const dark = new THREE.MeshStandardMaterial({ color: '#101a27', metalness: 0.35, roughness: 0.38 }); const visor = new THREE.MeshStandardMaterial({ color: '#ffca66', emissive: '#ff4b2e', emissiveIntensity: 1.3 })
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.9, 0.44), bodyMat); body.position.y = 0.75
     const head = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.46, 0.5), dark); head.position.y = 1.42
@@ -336,9 +377,30 @@ export class Game {
     }, undefined, () => undefined)
   }
 
-  private collides(x: number, z: number): boolean {
-    const r = 0.46
-    return this.mapBlocks.some(b => x > b.minX - r && x < b.maxX + r && z > b.minZ - r && z < b.maxZ + r)
+  private loadDefenderModel(): void {
+    const isGithubPages = location.hostname.endsWith('github.io')
+    if (location.hostname === '127.0.0.1' || location.hostname === 'localhost') return
+    const url = isGithubPages ? './dist/models/strikefront_defender_animated.glb' : '/manus-storage/game/sha256/9a20d9a98e83dbeb79af48fda90bb884c60f22bfd008b9f9d84d62e293a88fff.glb'
+    new GLTFLoader().load(url, gltf => {
+      this.defenderTemplate = gltf.scene
+      this.defenderAnimations = gltf.animations
+      this.defenderTemplate.traverse(o => { const m = o as THREE.Mesh; m.castShadow = true })
+      if (this.mode === 'playing') this.resetEnemies()
+    }, undefined, () => undefined)
+  }
+
+  private hasLineOfSight(from: THREE.Vector3, to: THREE.Vector3): boolean {
+    const distance = from.distanceTo(to)
+    const steps = Math.ceil(distance / 0.35)
+    for (let i = 1; i < steps; i += 1) {
+      const probe = from.clone().lerp(to, i / steps)
+      if (this.collides(probe.x, probe.z, 0.05)) return false
+    }
+    return true
+  }
+
+  private collides(x: number, z: number, radius = 0.46): boolean {
+    return this.mapBlocks.some(b => x > b.minX - radius && x < b.maxX + radius && z > b.minZ - radius && z < b.maxZ + radius)
   }
 }
 
