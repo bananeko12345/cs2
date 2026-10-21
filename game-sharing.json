@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 2,
+  "title": "Strikefront",
+  "description": "侵入し、設置し、生き残れ。Strikefrontは日本語で遊べるオリジナルのラウンド制タクティカルFPSです。",
+  "defaultCaptions": {
+    "x": "Strikefront — 侵入し、設置し、生き残れ。",
+    "facebook": "Strikefront — オリジナルのラウンド制タクティカルFPS。",
+    "reddit": "Strikefront: a compact original browser tactical FPS.",
+    "discord": "Strikefront — NIGHTFALL 01"
+  },
+  "assets": {
+    "favicon": "assets/share/favicon.png"
+  }
+}

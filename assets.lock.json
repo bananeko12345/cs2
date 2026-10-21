@@ -1,0 +1,30 @@
+{
+  "version": 2,
+  "groups": {
+    "models": {
+      "name": "Models",
+      "order": 10
+    },
+    "share": {
+      "name": "Share",
+      "order": 20
+    }
+  },
+  "bundles": {},
+  "assets": {
+    "assets/models/strikefront_bomb.glb": {
+      "path": "/manus-storage/game/sha256/efc3ab75cc4bd51fc78377e36323b19ea571cb0efb4bf7611145e6bc14160141.glb",
+      "sha256": "sha256:efc3ab75cc4bd51fc78377e36323b19ea571cb0efb4bf7611145e6bc14160141",
+      "size": 621096,
+      "assetType": "model",
+      "groupId": "models"
+    },
+    "assets/share/favicon.png": {
+      "path": "/manus-storage/game/sha256/e7e726b9cc54d3b4d6998221c876d7591dc0466b13105dab98b10623df6244ae.png",
+      "sha256": "sha256:e7e726b9cc54d3b4d6998221c876d7591dc0466b13105dab98b10623df6244ae",
+      "size": 914,
+      "assetType": "image",
+      "groupId": "share"
+    }
+  }
+}
