@@ -81,13 +81,13 @@ export class Game {
   start(): void {
     this.clock = 0; this.yaw = Math.PI; this.pitch = -0.04
     this.player.set(0, 1.65, 18); this.playerVelocity.set(0, 0, 0)
-    this.round = { ...initialRound(), phase: 'playing', round: 1, objective: 'サイトAまたはBへ移動して爆弾を設置', enemies: 5 }
+    this.round = { ...initialRound(), phase: 'playing', round: 1, objective: 'Move to Site A or B and plant the bomb', enemies: 5 }
     this.interaction = 0; this.fireCooldown = 0
     this.bombGroup.visible = false
     this.resetEnemies()
     this.mode = 'playing'
     this.input.endFrame()
-    this.hooks.banner('ラウンド開始 — 侵入して爆弾を設置せよ', 'info')
+    this.hooks.banner('Round started — infiltrate and plant the bomb', 'info')
   }
 
   pause(): void { if (this.mode === 'playing') this.mode = 'paused' }
@@ -104,7 +104,7 @@ export class Game {
     this.handleCombat()
     this.updateEnemies(dt)
     this.handleObjective(dt)
-    if (r.phase === 'playing' && r.timeLeft <= 0) this.finish(false, '時間切れ — 防衛ラインを突破できなかった')
+    if (r.phase === 'playing' && r.timeLeft <= 0) this.finish(false, 'Time expired — the defense line held')
     r.playerX = this.player.x; r.playerZ = this.player.z
     this.hooks.hud(r)
   }
@@ -151,11 +151,11 @@ export class Game {
       const loaded = Math.min(needed, this.round.reserve)
       if (loaded > 0 && this.round.ammo < 20) {
         this.round.ammo += loaded; this.round.reserve -= loaded
-        this.hooks.banner('マガジン交換完了', 'info'); this.audio.play('ui')
+        this.hooks.banner('Magazine reloaded', 'info'); this.audio.play('ui')
       }
     }
-    if (this.input.consume('fire') && this.fireCooldown <= 0) {
-      if (this.round.ammo <= 0) { this.hooks.banner('弾切れ — Rでリロード', 'warning'); this.audio.play('hurt'); return }
+    if ((this.input.consume('fire') || this.input.held('fire')) && this.fireCooldown <= 0) {
+      if (this.round.ammo <= 0) { this.hooks.banner('Out of ammo — press R to reload', 'warning'); this.audio.play('hurt'); return }
       this.fireCooldown = 0.13; this.round.ammo -= 1; this.audio.play('dash')
       this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera)
       const targets = this.enemies.filter(e => e.alive).flatMap(e => [e.mesh])
@@ -169,9 +169,9 @@ export class Game {
           this.round.score += 100
           if (enemy.hp <= 0) {
             enemy.alive = false; enemy.mesh.visible = false; this.round.kills += 1; this.round.enemies -= 1
-            this.hooks.banner(`敵を排除  +100  (${this.round.enemies}残り)`, 'success')
+            this.hooks.banner(`Enemy eliminated  +100  (${this.round.enemies} remaining)`, 'success')
             this.audio.play('win')
-            if (this.round.enemies <= 0 && !this.round.planted) this.finish(true, '敵部隊を全滅させた')
+            if (this.round.enemies <= 0 && !this.round.planted) this.finish(true, 'All defenders eliminated')
           }
         }
       }
@@ -196,7 +196,7 @@ export class Game {
           if (Math.random() < 0.58) {
             this.round.hp = Math.max(0, this.round.hp - 7)
             this.hooks.hurt(); this.audio.play('hurt')
-            if (this.round.hp <= 0) this.finish(false, '体力が尽きた — ラウンド敗北')
+            if (this.round.hp <= 0) this.finish(false, 'Health depleted — round lost')
           }
         }
       } else {
@@ -214,34 +214,34 @@ export class Game {
     const nearB = this.player.distanceTo(this.sites.B) < 2.5
     const nearSite = nearA || nearB
     if (!r.planted) {
-      r.objective = nearSite ? 'Eを長押しして爆弾を設置' : 'サイトAまたはBへ移動して爆弾を設置'
+      r.objective = nearSite ? 'Hold E to plant the bomb' : 'Move to Site A or B and plant the bomb'
       if (nearSite && this.input.held('interact')) this.interaction += dt
       else this.interaction = Math.max(0, this.interaction - dt * 2)
       r.interactionProgress = THREE.MathUtils.clamp(this.interaction / 1.25, 0, 1)
-      r.interaction = r.interactionProgress > 0 ? '設置中…' : nearSite ? '設置可能' : ''
+      r.interaction = r.interactionProgress > 0 ? 'Planting…' : nearSite ? 'READY TO PLANT' : ''
       if (this.interaction >= 1.25) {
         r.planted = true; r.plantedSite = nearA ? 'A' : 'B'; r.bombTime = 35; this.interaction = 0
         this.bombGroup.position.copy(r.plantedSite === 'A' ? this.sites.A : this.sites.B); this.bombGroup.visible = true
-        r.objective = '爆弾を守れ — タイマーが0になるまで耐えろ'; r.interaction = ''
-        this.hooks.banner(`爆弾設置完了 / サイト${r.plantedSite}`, 'warning'); this.audio.play('win')
+        r.objective = 'Defend the bomb — survive until the timer reaches zero'; r.interaction = ''
+        this.hooks.banner(`BOMB PLANTED / SITE${r.plantedSite}`, 'warning'); this.audio.play('win')
       }
     } else {
       r.bombTime = Math.max(0, r.bombTime - dt)
       const bombPos = r.plantedSite === 'A' ? this.sites.A : this.sites.B
       const nearBomb = this.player.distanceTo(bombPos) < 2.4
-      r.objective = nearBomb ? 'Eを長押しして爆弾を解除' : `サイト${r.plantedSite}を防衛 — 爆発まで ${Math.ceil(r.bombTime)}秒`
+      r.objective = nearBomb ? 'Hold E to defuse the bomb' : `Defend Site ${r.plantedSite} — ${Math.ceil(r.bombTime)}s to detonation`
       if (nearBomb && this.input.held('interact')) this.interaction += dt
       else this.interaction = Math.max(0, this.interaction - dt * 2)
       r.interactionProgress = THREE.MathUtils.clamp(this.interaction / 2.5, 0, 1)
-      r.interaction = r.interactionProgress > 0 ? '解除中…' : nearBomb ? '解除可能' : ''
-      if (this.interaction >= 2.5) this.finish(false, '爆弾を解除した — 防衛側の勝利')
-      if (r.bombTime <= 0) this.finish(true, '爆弾が爆発した — ミッション成功')
+      r.interaction = r.interactionProgress > 0 ? 'Defusing…' : nearBomb ? 'READY TO DEFUSE' : ''
+      if (this.interaction >= 2.5) this.finish(false, 'Bomb defused — defenders win')
+      if (r.bombTime <= 0) this.finish(true, 'Bomb detonated — mission success')
     }
   }
 
   private finish(won: boolean, reason: string): void {
     if (this.mode !== 'playing') return
-    this.round.phase = won ? 'won' : reason.includes('解除') ? 'defused' : 'lost'
+    this.round.phase = won ? 'won' : reason.includes('defused') ? 'defused' : 'lost'
     this.round.reason = reason
     this.round.objective = reason
     if (won) this.round.score += Math.max(0, Math.ceil(this.round.timeLeft) * 10)
@@ -343,5 +343,5 @@ export class Game {
 }
 
 function initialRound(): RoundState {
-  return { phase: 'briefing', timeLeft: 110, bombTime: 0, score: 0, kills: 0, enemies: 5, hp: 100, ammo: 20, reserve: 80, round: 1, planted: false, plantedSite: null, objective: 'サイトAまたはBへ移動して爆弾を設置', interaction: '', interactionProgress: 0, playerX: 0, playerZ: 18, reason: '' }
+  return { phase: 'briefing', timeLeft: 110, bombTime: 0, score: 0, kills: 0, enemies: 5, hp: 100, ammo: 20, reserve: 80, round: 1, planted: false, plantedSite: null, objective: 'Move to Site A or B and plant the bomb', interaction: '', interactionProgress: 0, playerX: 0, playerZ: 18, reason: '' }
 }

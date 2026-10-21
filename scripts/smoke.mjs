@@ -39,7 +39,7 @@ try {
   await waitForServer()
   browser = await chromium.launch({ args: ['--ignore-gpu-blocklist'] }).catch(() => chromium.launch({ args: ['--ignore-gpu-blocklist'], channel: 'chrome' }))
   const errors = []
-  const context = await browser.newContext({ viewport: { width: 1280, height: 720 }, locale: 'ja-JP' })
+  const context = await browser.newContext({ viewport: { width: 1280, height: 720 }, locale: 'en-US' })
   const page = await openGame(context, errors)
   await page.click('[data-action="play"]')
   await page.waitForSelector('[data-screen="hud"].is-active')
@@ -72,8 +72,23 @@ try {
   const planted = await state(page)
   if (!planted.round.planted) throw new Error('bomb was not planted')
   await page.screenshot({ path: `${out}/04-planted.png` })
-  if (errors.length) throw new Error(`console errors:\n  ${errors.join('\n  ')}`)
   await context.close()
+
+  const tablet = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true, locale: 'en-US' })
+  const tabletPage = await openGame(tablet, errors)
+  const touchReady = await tabletPage.evaluate(() => {
+    const layer = document.querySelector('.touch')
+    const fire = document.querySelector('[data-touch="fire"]')
+    return Boolean(layer && fire && getComputedStyle(layer).display !== 'none' && fire.getBoundingClientRect().width > 0)
+  })
+  if (!touchReady) throw new Error('tablet touch controls are not visible')
+  await tabletPage.tap('[data-action="play"]')
+  await tabletPage.waitForSelector('[data-screen="hud"].is-active')
+  await tabletPage.waitForTimeout(800)
+  await tabletPage.screenshot({ path: `${out}/05-tablet-hud.png` })
+  await tablet.close()
+
+  if (errors.length) throw new Error(`console errors:\n  ${errors.join('\n  ')}`)
   await browser.close()
   cleanup()
   console.log(`smoke: OK — moved ${moved.toFixed(1)} m, bomb planted, screenshots in ${out}/`)

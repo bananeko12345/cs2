@@ -5,6 +5,7 @@ import { Renderer } from './engine/renderer'
 import { GameLoop } from './engine/loop'
 import { Game, type RoundState } from './game/game'
 import { Ui } from './ui/ui'
+import { TouchControls } from './ui/touch'
 
 async function boot(): Promise<void> {
   const canvas = document.querySelector<HTMLCanvasElement>('#game')!
@@ -60,6 +61,7 @@ async function boot(): Promise<void> {
       window.setTimeout(() => ui.showResults(round), 550)
     },
   })
+  new TouchControls(document.getElementById('ui')!, input, () => game.mode === 'playing')
   ui.setBootProgress(1)
   ui.show('title')
 
@@ -96,5 +98,5 @@ async function boot(): Promise<void> {
 boot().catch(err => {
   console.error(err)
   const el = document.getElementById('ui')
-  if (el) el.innerHTML = `<div class="fatal">起動に失敗しました: ${String((err as Error)?.message ?? err).replace(/[<>&]/g, '')}</div>`
+  if (el) el.innerHTML = `<div class="fatal">Boot failed: ${String((err as Error)?.message ?? err).replace(/[<>&]/g, '')}</div>`
 })

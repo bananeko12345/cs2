@@ -1,10 +1,10 @@
 {
   "schemaVersion": 2,
   "title": "Strikefront",
-  "description": "侵入し、設置し、生き残れ。Strikefrontは日本語で遊べるオリジナルのラウンド制タクティカルFPSです。",
+  "description": "Infiltrate, plant, and survive. Strikefront is an original round-based tactical FPS for desktop and Android tablets.",
   "defaultCaptions": {
-    "x": "Strikefront — 侵入し、設置し、生き残れ。",
-    "facebook": "Strikefront — オリジナルのラウンド制タクティカルFPS。",
+    "x": "Strikefront — Infiltrate, plant, survive.",
+    "facebook": "Strikefront — an original round-based tactical FPS.",
     "reddit": "Strikefront: a compact original browser tactical FPS.",
     "discord": "Strikefront — NIGHTFALL 01"
   },

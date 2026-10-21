@@ -1,20 +1,16 @@
 # Strikefront TODO
 
-## 1. オリジナルの3DタクティカルFPS縦切り — 完了
+## Complete: original tactical FPS vertical slice
 
-- [x] 日本語で遊べる、Counter-Strike 2に着想を得たオリジナルの3DブラウザFPSとして実装する。
-- [x] プレイヤーが小さな市街地マップを一人称視点で移動し、射撃できる。
-- [x] 攻撃側としてサイトAまたはサイトBへ爆弾を設置し、設置後に守れる。
-- [x] 防衛側のボットが巡回・接近し、プレイヤーへ攻撃する。
-- [x] ラウンドを敵全滅、爆弾爆発、爆弾解除、体力切れ、または時間切れで決着する。
-- [x] W/A/S/D移動、マウス視点、左クリック射撃、Rリロード、E長押し設置/解除を実装する。
-- [x] ラウンド開始、勝敗結果、体力、弾薬、タイマー、スコア、敵撃破数、ミニマップ、サイト表示をHUDに表示する。
-- [x] 実在ゲームの名称・アセット・UIをコピーせず、Strikefront独自のビジュアルと名称を使用する。
-- [x] ゲーム内容の主言語を日本語に固定する。
-- [x] ローカル完結のシングルプレイヤー体験として実装する。
+Strikefront is an original Three.js browser FPS inspired by round-based attack-and-defend shooters. The player infiltrates a compact city map, plants a bomb at Site A or B, and defends it against patrol bots.
 
-## 2. 共有準備とGitHub同期 — 完了
+Completed requirements:
 
-- [x] Strikefront固有のfaviconと共有メタデータを追加する。
-- [x] 生成した爆弾モデルとfaviconをアセット管理へ同期する。
-- [x] `bananeko12345/cs2` の `main` へ完成ソースをプッシュする。
+- WASD movement, mouse look, left-click shooting, R reload, Shift sprint, and E plant/defuse.
+- Android tablet support with a virtual movement stick, right-side drag look, FIRE, USE, and RELOAD buttons.
+- Round timer, health, ammo, score, eliminations, minimap, bomb sites, start banner, pause screen, and result screen.
+- English player-facing game text and English sharing metadata.
+- Original game name, visual language, favicon, and generated bomb prop; no copied real-game UI or assets.
+- Local single-player scope; online multiplayer and payments are out of scope.
+
+Validation completed with `pnpm typecheck`, `pnpm test` (37 tests), `pnpm build`, and `pnpm smoke`. Smoke coverage includes desktop movement/bomb planting and an Android tablet emulation check for visible touch controls and starting a round.
